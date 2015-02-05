@@ -2,22 +2,18 @@ theory hw1
 imports Main
 begin
 
-datatype \<Phi> = P int | Neg \<Phi> | Or \<Phi> \<Phi> 
-            (* | And \<Phi> \<Phi> | Imp \<Phi> \<Phi> *)
+datatype \<Phi> = P int | Neg \<Phi> | Or \<Phi> \<Phi> (* using `int` for variable names *)
 type_synonym \<Sigma> = "int \<Rightarrow> bool"
+type_synonym \<Gamma> = "\<Phi> list"
+type_synonym \<Delta> = "\<Phi> list"
 
-fun interp :: "\<Sigma> \<Rightarrow> \<Phi> \<Rightarrow> bool" where
-  "interp \<sigma> (P n) = \<sigma> n"
-| "interp \<sigma> (Neg \<phi>) = (\<not> (interp \<sigma> \<phi>))"
-| "interp \<sigma> (Or \<phi>\<^sub>1 \<phi>\<^sub>2) = (interp \<sigma> \<phi>\<^sub>1 \<or> interp \<sigma> \<phi>\<^sub>2)"
-(*
-| "interp \<sigma> (And \<phi>\<^sub>1 \<phi>\<^sub>2) = (interp \<sigma> \<phi>\<^sub>1 \<and> interp \<sigma> \<phi>\<^sub>2)"
-| "interp \<sigma> (Imp \<phi>\<^sub>1 \<phi>\<^sub>2) = (interp \<sigma> \<phi>\<^sub>1 \<longrightarrow> interp \<sigma> \<phi>\<^sub>2)"
-*)
+fun interp :: "\<Sigma> \<Rightarrow> \<Phi> \<Rightarrow> bool" (infix "\<Turnstile>" 40) where
+  "(op \<Turnstile>) \<sigma> (P n) = \<sigma> n"
+| "(op \<Turnstile>) \<sigma> (Neg \<phi>) = (\<not> \<sigma> \<Turnstile> \<phi>)"
+| "(op \<Turnstile>) \<sigma> (Or \<phi>\<^sub>1 \<phi>\<^sub>2) = (\<sigma> \<Turnstile> \<phi>\<^sub>1 \<or> \<sigma> \<Turnstile> \<phi>\<^sub>2)"
 
 abbreviation "And \<phi>\<^sub>1 \<phi>\<^sub>2 \<equiv> Neg (Or (Neg \<phi>\<^sub>1) (Neg \<phi>\<^sub>2))"
 abbreviation "Imp \<phi>\<^sub>1 \<phi>\<^sub>2 \<equiv> Or (Neg \<phi>\<^sub>1) \<phi>\<^sub>2"
-
 abbreviation "tt \<equiv> Or (P 0) (Neg (P 0))"
 abbreviation "ff \<equiv> And (P 0) (Neg (P 0))"
 
@@ -29,39 +25,34 @@ fun BOr :: "\<Phi> list \<Rightarrow> \<Phi>" where
   "BOr [] = ff"
 | "BOr (\<phi> # \<phi>s) = Or \<phi> (BOr \<phi>s)"
 
-type_synonym \<Gamma> = "\<Phi> list"
-type_synonym \<Delta> = "\<Phi> list"
+inductive proves :: "\<Gamma> \<Rightarrow> \<Delta> \<Rightarrow> bool" (infix "\<turnstile>" 40) where
+  I    : "[\<phi>] \<turnstile> [\<phi>]"
+(* | Cut  : "\<lbrakk>\<Gamma>\<^sub>1 \<turnstile> \<phi> # \<Delta>\<^sub>1; \<phi> # \<Gamma>\<^sub>2 \<turnstile> \<Delta>\<^sub>2\<rbrakk>
+          \<Longrightarrow> \<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2 \<turnstile> \<Delta>\<^sub>1 @ \<Delta>\<^sub>2" *)
+| orL  : "\<lbrakk>\<phi>\<^sub>1 # \<Gamma>\<^sub>1 \<turnstile> \<Delta>\<^sub>1; \<phi>\<^sub>2 # \<Gamma>\<^sub>2 \<turnstile> \<Delta>\<^sub>2\<rbrakk>
+          \<Longrightarrow> Or \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2 \<turnstile> \<Delta>\<^sub>1 @ \<Delta>\<^sub>2"
+| orR1 : "\<Gamma> \<turnstile> (\<phi>\<^sub>1 # \<Delta>) \<Longrightarrow> \<Gamma> \<turnstile> Or \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Delta>"
+| orR2 : "\<Gamma> \<turnstile> (\<phi>\<^sub>2 # \<Delta>) \<Longrightarrow> \<Gamma> \<turnstile> Or \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Delta>"
+| notL : "\<Gamma> \<turnstile> (\<phi> # \<Delta>) \<Longrightarrow> Neg \<phi> # \<Gamma> \<turnstile> \<Delta>"
+| notR : "\<phi> # \<Gamma> \<turnstile> \<Delta> \<Longrightarrow> \<Gamma> \<turnstile> Neg \<phi> # \<Delta>"
+| WL   : "\<Gamma> \<turnstile> \<Delta> \<Longrightarrow> \<phi> # \<Gamma> \<turnstile> \<Delta>"
+| WR   : "\<Gamma> \<turnstile> \<Delta> \<Longrightarrow> \<Gamma> \<turnstile> \<phi> # \<Delta>"
+| CL   : "\<phi> # \<phi> # \<Gamma> \<turnstile> \<Delta> \<Longrightarrow> \<phi> # \<Gamma> \<turnstile> \<Delta>"
+| CR   : "\<Gamma> \<turnstile> \<phi> # \<phi> # \<Delta> \<Longrightarrow> \<Gamma> \<turnstile> \<phi> # \<Delta>"
+| PL   : "\<Gamma>\<^sub>1 @ [\<phi>\<^sub>1, \<phi>\<^sub>2] @ \<Gamma>\<^sub>2 \<turnstile> \<Delta> \<Longrightarrow> \<Gamma>\<^sub>1 @ [\<phi>\<^sub>2, \<phi>\<^sub>1] @ \<Gamma>\<^sub>2 \<turnstile> \<Delta>"
+| PR   : "\<Gamma> \<turnstile> \<Delta>\<^sub>1 @ [\<phi>\<^sub>1, \<phi>\<^sub>2] @ \<Delta>\<^sub>2 \<Longrightarrow> \<Gamma> \<turnstile> \<Delta>\<^sub>1 @ [\<phi>\<^sub>2, \<phi>\<^sub>1] @ \<Delta>\<^sub>2"
 
-inductive proves :: "\<Gamma> \<Rightarrow> \<Delta> \<Rightarrow> bool" where
-  I    : "proves [\<phi>] [\<phi>]"
-| Cut  : "\<lbrakk>proves \<Gamma>\<^sub>1 (\<phi> # \<Delta>\<^sub>1); proves (\<phi> # \<Gamma>\<^sub>2) \<Delta>\<^sub>2\<rbrakk>
-          \<Longrightarrow> proves (\<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2) (\<Delta>\<^sub>1 @ \<Delta>\<^sub>2)"
-| orL  : "\<lbrakk>proves (\<phi>\<^sub>1 # \<Gamma>\<^sub>1) \<Delta>\<^sub>1; proves (\<phi>\<^sub>2 # \<Gamma>\<^sub>2) \<Delta>\<^sub>2\<rbrakk>
-          \<Longrightarrow> proves (Or \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2) (\<Delta>\<^sub>1 @ \<Delta>\<^sub>2)"
-| orR1 : "proves \<Gamma> (\<phi>\<^sub>1 # \<Delta>) \<Longrightarrow> proves \<Gamma> (Or \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Delta>)"
-| orR2 : "proves \<Gamma> (\<phi>\<^sub>2 # \<Delta>) \<Longrightarrow> proves \<Gamma> (Or \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Delta>)"
-| notL : "proves \<Gamma> (\<phi> # \<Delta>) \<Longrightarrow> proves (Neg \<phi> # \<Gamma>) \<Delta>"
-| notR : "proves (\<phi> # \<Gamma>) \<Delta> \<Longrightarrow> proves \<Gamma> (Neg \<phi> # \<Delta>)"
-| WL   : "proves \<Gamma> \<Delta> \<Longrightarrow> proves (\<phi> # \<Gamma>) \<Delta>"
-| WR   : "proves \<Gamma> \<Delta> \<Longrightarrow> proves \<Gamma> (\<phi> # \<Delta>)"
-| CL   : "proves (\<phi> # \<phi> # \<Gamma>) \<Delta> \<Longrightarrow> proves (\<phi> # \<Gamma>) \<Delta>"
-| CR   : "proves \<Gamma> (\<phi> # \<phi> # \<Delta>) \<Longrightarrow> proves \<Gamma> (\<phi> # \<Delta>)"
-| PL   : "proves (\<Gamma>\<^sub>1 @ [\<phi>\<^sub>1, \<phi>\<^sub>2] @ \<Gamma>\<^sub>2) \<Delta> \<Longrightarrow> proves (\<Gamma>\<^sub>1 @ [\<phi>\<^sub>2, \<phi>\<^sub>1] @ \<Gamma>\<^sub>2) \<Delta>"
-| PR   : "proves \<Gamma> (\<Delta>\<^sub>1 @ [\<phi>\<^sub>1, \<phi>\<^sub>2] @ \<Delta>\<^sub>2) \<Longrightarrow> proves \<Gamma> (\<Delta>\<^sub>1 @ [\<phi>\<^sub>2, \<phi>\<^sub>1] @ \<Delta>\<^sub>2)"
-(* Derived rules
-| andL1: "proves (\<Gamma> @ [\<phi>\<^sub>1]) \<Delta> \<Longrightarrow> proves (\<Gamma> @ [And \<phi>\<^sub>1 \<phi>\<^sub>2]) \<Delta>"
-| andL2: "proves (\<Gamma> @ [\<phi>\<^sub>2]) \<Delta> \<Longrightarrow> proves (\<Gamma> @ [And \<phi>\<^sub>1 \<phi>\<^sub>2]) \<Delta>"
-| andR : "\<lbrakk>proves \<Gamma>\<^sub>1 (\<phi>\<^sub>1 # \<Delta>\<^sub>1); proves \<Gamma>\<^sub>2 (\<phi>\<^sub>2 # \<Delta>\<^sub>2)\<rbrakk>
-          \<Longrightarrow> proves (\<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2) (And \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Delta>\<^sub>1 @ \<Delta>\<^sub>2)"
-| impL : "\<lbrakk>proves \<Gamma>\<^sub>1 (\<phi>\<^sub>1 # \<Delta>\<^sub>1); proves (\<Gamma>\<^sub>2 @ [\<phi>\<^sub>2]) \<Delta>\<^sub>2\<rbrakk>
-          \<Longrightarrow> proves (\<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2 @ [Imp \<phi>\<^sub>1 \<phi>\<^sub>2]) (\<Delta>\<^sub>1 @ \<Delta>\<^sub>2)"
-| impR : "proves (\<Gamma> @ [\<phi>\<^sub>1]) (\<phi>\<^sub>2 # \<Delta>) \<Longrightarrow> proves \<Gamma> (Imp \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Delta>)"
-*)
+theorem soundness: "\<Gamma> \<turnstile> \<Delta> \<Longrightarrow> \<sigma> \<Turnstile> Imp (BAnd \<Gamma>) (BOr \<Delta>)" sorry
+theorem completeness: "\<sigma> \<Turnstile> Imp (BAnd \<Gamma>) (BOr \<Delta>) \<Longrightarrow> \<Gamma> \<turnstile> \<Delta>" sorry
 
-abbreviation "valid \<phi> \<equiv> proves [] [\<phi>]"
-
-lemma "valid (Or (P 0) (Neg (P 0)))"
-by (rule CR, rule orR2, rule notR, rule orR1, rule I)
+(* Derived rules *)
+lemma andL1: "\<phi>\<^sub>1 # \<Gamma> \<turnstile> \<Delta> \<Longrightarrow> And \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Gamma> \<turnstile> \<Delta>" by (auto simp: notL orR1 notR)
+lemma andL2: "\<phi>\<^sub>2 # \<Gamma> \<turnstile> \<Delta> \<Longrightarrow> And \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Gamma> \<turnstile> \<Delta>" by (auto simp: notL orR2 notR)
+lemma andR: "\<lbrakk>\<Gamma>\<^sub>1 \<turnstile> \<phi>\<^sub>1 # \<Delta>\<^sub>1; \<Gamma>\<^sub>2 \<turnstile> \<phi>\<^sub>2 # \<Delta>\<^sub>2\<rbrakk> \<Longrightarrow> \<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2 \<turnstile> And \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Delta>\<^sub>1 @ \<Delta>\<^sub>2"
+by (auto simp: notR notL orL)
+lemma impL: "\<lbrakk>\<Gamma>\<^sub>1 \<turnstile> \<phi>\<^sub>1 # \<Delta>\<^sub>1; \<phi>\<^sub>2 # \<Gamma>\<^sub>2 \<turnstile> \<Delta>\<^sub>2\<rbrakk> \<Longrightarrow> Imp \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2 \<turnstile> \<Delta>\<^sub>1 @ \<Delta>\<^sub>2" sorry
+lemma impR: "\<phi>\<^sub>1 # \<Gamma> \<turnstile> \<phi>\<^sub>2 # \<Delta> \<Longrightarrow> \<Gamma> \<turnstile> Imp \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Delta>"
+apply (rule CR) by (auto simp: orR1 notR orR2)
 
 (** Q1 *)
 inductive dual\<^sub>1 :: "(bool \<Rightarrow> bool) \<Rightarrow> (bool \<Rightarrow> bool) \<Rightarrow> bool" for R where
@@ -87,10 +78,26 @@ by auto
 
 (** Q2 *)
 
+abbreviation "valid \<phi> \<equiv> [] \<turnstile> [\<phi>]"
+
 lemma a: "valid (Imp (And (P 0) (Neg (P 0))) (P 1))"
 by (rule orR1, rule notR, rule notL, rule CR, rule orR2, rule notR, rule orR1, rule I)
 
 lemma b: "valid (Imp (And (P 0) (Or (P 1) (P 2))) (Or (P 0) (P 2)))"
 by (rule CR, rule orR1, rule notR, rule orR2, rule orR1, rule notL, rule orR1, rule notR, rule I)
+
+(** Q3 *)
+
+abbreviation "Eqv \<phi>\<^sub>1 \<phi>\<^sub>2 \<equiv> And (Imp \<phi>\<^sub>1 \<phi>\<^sub>2) (Imp \<phi>\<^sub>2 \<phi>\<^sub>1)"
+
+lemma eqvR: "\<lbrakk>\<phi>\<^sub>1 # \<Gamma>\<^sub>1 \<turnstile> \<phi>\<^sub>2 # \<Delta>\<^sub>1; \<phi>\<^sub>2 # \<Gamma>\<^sub>2 \<turnstile> \<phi>\<^sub>1 # \<Delta>\<^sub>2\<rbrakk> \<Longrightarrow> \<Gamma>\<^sub>1 @ \<Gamma>\<^sub>2 \<turnstile> Eqv \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Delta>\<^sub>1 @ \<Delta>\<^sub>2"
+apply (rule andR)
+apply (rule CR, rule orR1, rule notR, rule orR2, simp)
+apply (rule CR, rule orR1, rule notR, rule orR2, simp)
+done
+
+lemma eqvL1: "\<phi>\<^sub>1 # \<Gamma> \<turnstile> \<Delta> \<Longrightarrow> Eqv \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Gamma> \<turnstile> \<Delta>" sorry
+lemma eqvL2: "\<phi>\<^sub>2 # \<Gamma> \<turnstile> \<Delta> \<Longrightarrow> Eqv \<phi>\<^sub>1 \<phi>\<^sub>2 # \<Gamma> \<turnstile> \<Delta>" sorry
+
 
 end
